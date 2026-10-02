@@ -1,0 +1,71 @@
+{
+  "baterias": [
+    {
+      "nombre": "hongo1",
+      "tipo": "hongos",
+      "cola_pavo": "70",
+      "zona_cola_pavo": "invernadero",
+      "levadura": "30",
+      "zona_levadura": "invernadero",
+      "voltaje_corte": 0.3,
+      "mediciones": []
+    },
+    {
+      "nombre": "pila4",
+      "tipo": "convencional",
+      "cola_pavo": "",
+      "zona_cola_pavo": "",
+      "levadura": "",
+      "zona_levadura": "",
+      "voltaje_corte": 0.3,
+      "mediciones": [
+        {
+          "fecha_hora": "2026-09-23T23:41:10.237817",
+          "voltaje_V": 1.4157,
+          "corriente_uA": 14157.104,
+          "potencia_uW": 20042.357
+        },
+        {
+          "fecha_hora": "2026-09-23T23:43:23.242003",
+          "voltaje_V": 1.3947,
+          "corriente_uA": 13946.534,
+          "potencia_uW": 19450.578
+        }
+      ]
+    },
+    {
+      "nombre": "pila5",
+      "tipo": "convencional",
+      "cola_pavo": "",
+      "zona_cola_pavo": "",
+      "levadura": "",
+      "zona_levadura": "",
+      "voltaje_corte": 0.3,
+      "mediciones": [
+        {
+          "fecha_hora": "2026-09-24T14:22:33.922657",
+          "voltaje_V": 1.3705,
+          "corriente_uA": 13705.444,
+          "potencia_uW": 18783.917
+        }
+      ]
+    },
+    {
+      "nombre": "pila6",
+      "tipo": "convencional",
+      "cola_pavo": "",
+      "zona_cola_pavo": "",
+      "levadura": "",
+      "zona_levadura": "",
+      "voltaje_corte": 0.3,
+      "mediciones": [
+        {
+          "fecha_hora": "2026-09-24T14:22:56.747349",
+          "voltaje_V": 1.5878,
+          "corriente_uA": 15878.295,
+          "potencia_uW": 25212.027
+        }
+      ]
+    }
+  ]
+}
