@@ -1,16 +1,6 @@
 {
   "baterias": [
     {
-      "nombre": "hongo1",
-      "tipo": "hongos",
-      "cola_pavo": "70",
-      "zona_cola_pavo": "invernadero",
-      "levadura": "30",
-      "zona_levadura": "invernadero",
-      "voltaje_corte": 0.3,
-      "mediciones": []
-    },
-    {
       "nombre": "pila4",
       "tipo": "convencional",
       "cola_pavo": "",
@@ -64,6 +54,75 @@
           "voltaje_V": 1.5878,
           "corriente_uA": 15878.295,
           "potencia_uW": 25212.027
+        }
+      ]
+    },
+    {
+      "nombre": "pila1_prueba",
+      "tipo": "convencional",
+      "cola_pavo": "",
+      "zona_cola_pavo": "",
+      "levadura": "",
+      "zona_levadura": "",
+      "voltaje_corte": 0.3,
+      "mediciones": [
+        {
+          "fecha_hora": "2026-10-08T14:39:46.648764",
+          "voltaje_V": 1.4576,
+          "corriente_uA": 15774.537,
+          "potencia_uW": 22992.447
+        },
+        {
+          "fecha_hora": "2026-10-08T15:42:34.328339",
+          "voltaje_V": 0.6184,
+          "corriente_uA": 6692.504,
+          "potencia_uW": 4138.56
+        }
+      ]
+    },
+    {
+      "nombre": "pila2_prueba",
+      "tipo": "convencional",
+      "cola_pavo": "",
+      "zona_cola_pavo": "",
+      "levadura": "",
+      "zona_levadura": "",
+      "voltaje_corte": 0.3,
+      "mediciones": [
+        {
+          "fecha_hora": "2026-10-08T14:40:05.338718",
+          "voltaje_V": 1.5312,
+          "corriente_uA": 16571.046,
+          "potencia_uW": 25373.003
+        },
+        {
+          "fecha_hora": "2026-10-08T15:42:48.048743",
+          "voltaje_V": 0.6161,
+          "corriente_uA": 6668.09,
+          "potencia_uW": 4108.42
+        }
+      ]
+    },
+    {
+      "nombre": "pila3_prueba",
+      "tipo": "convencional",
+      "cola_pavo": "",
+      "zona_cola_pavo": "",
+      "levadura": "",
+      "zona_levadura": "",
+      "voltaje_corte": 0.3,
+      "mediciones": [
+        {
+          "fecha_hora": "2026-10-08T14:40:23.257927",
+          "voltaje_V": 1.3386,
+          "corriente_uA": 14486.693,
+          "potencia_uW": 19391.458
+        },
+        {
+          "fecha_hora": "2026-10-08T15:42:59.879346",
+          "voltaje_V": 0.3663,
+          "corriente_uA": 3964.233,
+          "potencia_uW": 1452.079
         }
       ]
     }
