@@ -76,20 +76,18 @@ def crear_ficha_bateria(nombre, tipo, cola_pavo="", zona_cola_pavo="", levadura=
     }
 
 
-def crear_registro_medicion(voltaje_V, corriente_uA, potencia_uW):
+def crear_registro_medicion(voltaje_V, corriente_uA, potencia_uW, horas_uso=0.0):
     return {
         "fecha_hora": datetime.now().isoformat(),
         "voltaje_V": voltaje_V,
         "corriente_uA": corriente_uA,
         "potencia_uW": potencia_uW,
+        "horas_uso": horas_uso,
     }
 
 
 # 3. CÁLCULOS
 def acumular_en_el_tiempo(valores, tiempos):
-    # Suma un valor a lo largo del tiempo, tramo por tramo. Con potencia
-    # da energía; con corriente da carga. Entre dos mediciones se usa el
-    # promedio de ambas por el tiempo transcurrido.
     total = 0.0
     for i in range(1, len(valores)):
         horas_transcurridas = tiempos[i] - tiempos[i - 1]
@@ -99,8 +97,6 @@ def acumular_en_el_tiempo(valores, tiempos):
 
 
 def calcular_tendencia(tiempos, valores):
-    # Traza la recta que mejor pasa por los puntos (mínimos cuadrados).
-    # Devuelve cuánto cambia el valor por hora y su valor en el momento cero.
     n = len(tiempos)
     suma_t = sum(tiempos)
     suma_v = sum(valores)
@@ -113,12 +109,29 @@ def calcular_tendencia(tiempos, valores):
 
 
 def calcular_resumen(mediciones, voltaje_corte=0.30):
+    # Usa el TIEMPO DE USO acumulado, no el tiempo de reloj entre mediciones.
     if len(mediciones) < 2:
         return None
 
-    # Pasa las fechas a horas transcurridas desde la primera medición
-    t0 = datetime.fromisoformat(mediciones[0]["fecha_hora"])
-    horas = [(datetime.fromisoformat(m["fecha_hora"]) - t0).total_seconds() / 3600.0 for m in mediciones]
+    horas = []
+    acumulado = 0.0
+    for i, m in enumerate(mediciones):
+        if i > 0:
+            acumulado += m.get("horas_uso", 0.0)
+        horas.append(acumulado)
+
+    # Sin tiempo de uso declarado no hay nada que calcular
+    if horas[-1] <= 0:
+        return {
+            "num_mediciones": len(mediciones),
+            "horas_cubiertas": 0.0,
+            "energia_uWh": 0.0,
+            "carga_uAh": 0.0,
+            "caida_mV_por_hora": 0.0,
+            "vida_util_horas": None,
+            "restante_horas": None,
+            "sin_tiempo_uso": True,
+        }
 
     voltajes = [m["voltaje_V"] for m in mediciones]
     corrientes = [m["corriente_uA"] for m in mediciones]
@@ -136,6 +149,7 @@ def calcular_resumen(mediciones, voltaje_corte=0.30):
         "caida_mV_por_hora": caida_por_hora * 1000,
         "vida_util_horas": None,
         "restante_horas": None,
+        "sin_tiempo_uso": False,
     }
 
     # Solo se proyecta el agotamiento si el voltaje va bajando
@@ -154,9 +168,6 @@ def calcular_potencia_promedio(mediciones):
 
 
 # 4. ARDUINO
-# El canal de voltaje del INA226 (pin VBS) está averiado, así que el
-# sketch calcula el voltaje con la Ley de Ohm: V = I x R. El valor ya
-# llega calculado desde el Arduino.
 BAUDIOS = 9600
 SEGUNDOS_REINICIO = 2   # el Arduino se reinicia al abrir el puerto
 SEGUNDOS_ESPERA = 8     # máximo esperando la medición completa
@@ -291,7 +302,7 @@ texto_resumen.pack(anchor="w")
 
 # Tarjeta: historial
 cuerpo_historial = crear_tarjeta("Historial de mediciones")
-ctk.CTkLabel(cuerpo_historial, text="Fecha y hora           Voltaje      Corriente        Potencia", font=FUENTE_MONO, text_color=COLOR_SUAVE).pack(anchor="w", pady=(0, 6))
+ctk.CTkLabel(cuerpo_historial, text="Fecha y hora           Voltaje      Corriente        Potencia      Uso", font=FUENTE_MONO, text_color=COLOR_SUAVE).pack(anchor="w", pady=(0, 6))
 caja_historial = ctk.CTkTextbox(cuerpo_historial, height=180, font=FUENTE_MONO, fg_color=COLOR_CAJA, text_color=COLOR_TEXTO, border_width=0)
 caja_historial.pack(fill="x")
 caja_historial.configure(state="disabled")
@@ -369,10 +380,10 @@ def actualizar_panel():
     ficha = f"Tipo:  {tipo_texto}"
     if bat["tipo"] == "hongos":
         ficha += (f"\nCola de pavo:  {bat['cola_pavo']}%"
-                  f"   (cultivo en {bat['zona_cola_pavo']})"
-                  f"\nLevadura de cerveza:  {bat['levadura']}%"
-                  f"   (cultivo en {bat['zona_levadura']})"
-                  f"\nCarbón:  {bat.get('carbon', '—')}%")
+                    f"   (cultivo en {bat['zona_cola_pavo']})"
+                    f"\nLevadura de cerveza:  {bat['levadura']}%"
+                    f"   (cultivo en {bat['zona_levadura']})"
+                    f"\nCarbón:  {bat.get('carbon', '—')}%")
     ficha += f"\nVoltaje de corte:  {bat.get('voltaje_corte', 0.30)} V"
     texto_ficha.configure(text=ficha)
 
@@ -380,15 +391,20 @@ def actualizar_panel():
     res = calcular_resumen(mediciones, bat.get("voltaje_corte", 0.30))
     if res is None:
         texto_resumen.configure(text="Se necesitan al menos 2 mediciones para calcular el resumen.")
+    elif res.get("sin_tiempo_uso"):
+        texto_resumen.configure(
+            text="No hay tiempo de uso registrado entre las mediciones.\n"
+                "Al tomar una medición, indica cuánto tiempo estuvo la batería\n"
+                "alimentando algo desde la anterior.")
     else:
-        t = (f"Periodo cubierto:  {res['horas_cubiertas']:.2f} horas\n"
-             f"Energía total entregada:  {res['energia_uWh']:.2f} µWh\n"
-             f"Carga total entregada:  {res['carga_uAh']:.2f} µAh")
+        t = (f"Tiempo de uso acumulado:  {res['horas_cubiertas']:.2f} horas\n"
+            f"Energía total entregada:  {res['energia_uWh']:.2f} µWh\n"
+            f"Carga total entregada:  {res['carga_uAh']:.2f} µAh")
         if res["vida_util_horas"] is not None:
-            t += (f"\nTendencia del voltaje:  {res['caida_mV_por_hora']:.2f} mV por hora\n"
-                  f"Vida útil estimada:  {res['vida_util_horas']:.2f} h "
-                  f"({res['vida_util_horas']/24:.2f} días)\n"
-                  f"Tiempo restante estimado:  {res['restante_horas']:.2f} h")
+            t += (f"\nTendencia del voltaje:  {res['caida_mV_por_hora']:.2f} mV por hora de uso\n"
+                    f"Vida útil estimada:  {res['vida_util_horas']:.2f} h de uso "
+                    f"({res['vida_util_horas']/24:.2f} días)\n"
+                    f"Uso restante estimado:  {res['restante_horas']:.2f} h")
         else:
             t += "\n\nEl voltaje aún no muestra una tendencia a la baja clara."
         texto_resumen.configure(text=t)
@@ -397,11 +413,14 @@ def actualizar_panel():
     caja_historial.configure(state="normal")
     caja_historial.delete("1.0", "end")
     if mediciones:
-        for m in mediciones:
+        acumulado = 0.0
+        for i, m in enumerate(mediciones):
+            if i > 0:
+                acumulado += m.get("horas_uso", 0.0)
             caja_historial.insert("end",
                 f"{m['fecha_hora'][:10]} {m['fecha_hora'][11:19]}   "
                 f"{m['voltaje_V']:>7.4f} V   {m['corriente_uA']:>10.2f} µA   "
-                f"{m['potencia_uW']:>10.2f} µW\n")
+                f"{m['potencia_uW']:>10.2f} µW   {acumulado:>6.2f} h\n")
     else:
         caja_historial.insert("end", "Aún no hay mediciones para esta batería.\n")
     caja_historial.configure(state="disabled")
@@ -441,8 +460,6 @@ def accion_nueva_bateria():
     ctk.CTkRadioButton(marco_tipo, text="Convencional", variable=tipo_var, value="convencional", command=alternar_campos).pack(side="left", padx=(0, 16))
     ctk.CTkRadioButton(marco_tipo, text="Hongos", variable=tipo_var, value="hongos", command=alternar_campos).pack(side="left")
 
-    # Dos deslizadores y el carbón calculado: como los tres suman 100,
-    # solo dos son libres. Así nunca hay una composición inválida.
     ctk.CTkLabel(marco_hongos, text="COMPOSICIÓN DE LA MEZCLA", font=FUENTE_ENCABEZADO, text_color=COLOR_SUAVE).pack(anchor="w", pady=(12, 2))
     ctk.CTkLabel(marco_hongos, text="Ajusta los dos hongos; el carbón completa el 100%", font=FUENTE_PEQUENA, text_color=COLOR_SUAVE).pack(anchor="w", pady=(0, 10))
 
@@ -540,20 +557,69 @@ def accion_eliminar_bateria():
         limpiar_panel()
 
 
+def preguntar_tiempo_uso(callback):
+    # Pide el tiempo que la batería estuvo en uso y llama a callback(horas)
+    dlg = ctk.CTkToplevel(ventana)
+    dlg.title("Tiempo de uso")
+    dlg.geometry("420x280")
+    dlg.configure(fg_color=COLOR_FONDO)
+    dlg.transient(ventana)
+    dlg.after(100, dlg.grab_set)
+
+    caja = ctk.CTkFrame(dlg, fg_color=COLOR_TARJETA, corner_radius=RADIO_ESQUINA)
+    caja.pack(fill="both", expand=True, padx=20, pady=20)
+
+    ctk.CTkLabel(caja, text="Tiempo de uso", font=FUENTE_SUBTITULO, text_color=COLOR_TEXTO).pack(anchor="w", padx=24, pady=(20, 6))
+    ctk.CTkLabel(caja, text="¿Cuánto tiempo estuvo la batería alimentando algo\ndesde la medición anterior?", font=FUENTE_NORMAL, text_color=COLOR_SUAVE, justify="left").pack(anchor="w", padx=24, pady=(0, 16))
+
+    def solo_enteros(texto):
+        return texto == "" or texto.isdigit()
+
+    validador = (dlg.register(solo_enteros), "%P")
+
+    fila = ctk.CTkFrame(caja, fg_color="transparent")
+    fila.pack(anchor="w", padx=24)
+
+    entrada_horas = ctk.CTkEntry(fila, width=70, height=36, validate="key", validatecommand=validador)
+    entrada_horas.insert(0, "0")
+    entrada_horas.pack(side="left")
+    ctk.CTkLabel(fila, text="horas", font=FUENTE_NORMAL, text_color=COLOR_SUAVE).pack(side="left", padx=(8, 20))
+
+    entrada_min = ctk.CTkEntry(fila, width=70, height=36, validate="key", validatecommand=validador)
+    entrada_min.insert(0, "0")
+    entrada_min.pack(side="left")
+    ctk.CTkLabel(fila, text="minutos", font=FUENTE_NORMAL, text_color=COLOR_SUAVE).pack(side="left", padx=(8, 0))
+
+    ctk.CTkLabel(caja, text="Si es la primera medición, o la batería no se usó, deja 0.", font=FUENTE_PEQUENA, text_color=COLOR_SUAVE).pack(anchor="w", padx=24, pady=(14, 0))
+
+    def confirmar():
+        h = entrada_horas.get().strip()
+        m = entrada_min.get().strip()
+        horas = (int(h) if h else 0) + (int(m) if m else 0) / 60.0
+        dlg.destroy()
+        callback(horas)
+
+    ctk.CTkButton(caja, text="Tomar medición", height=38, command=confirmar).pack(side="bottom", fill="x", padx=24, pady=20)
+
+
 def accion_medir():
     if seleccionada is None:
         messagebox.showinfo("Nada seleccionado", "Primero selecciona una batería.")
         return
-    try:
-        voltaje, corriente, potencia = leer_medicion_arduino(entrada_puerto.get().strip())
-    except ErrorArduino as e:
-        messagebox.showerror("Error con el Arduino", str(e))
-        return
 
-    baterias[seleccionada].setdefault("mediciones", []).append(
-        crear_registro_medicion(voltaje, corriente, potencia))
-    guardar_datos()
-    actualizar_panel()
+    def con_el_tiempo(horas_uso):
+        try:
+            voltaje, corriente, potencia = leer_medicion_arduino(entrada_puerto.get().strip())
+        except ErrorArduino as e:
+            messagebox.showerror("Error con el Arduino", str(e))
+            return
+
+        baterias[seleccionada].setdefault("mediciones", []).append(
+            crear_registro_medicion(voltaje, corriente, potencia, horas_uso))
+        guardar_datos()
+        actualizar_panel()
+
+    preguntar_tiempo_uso(con_el_tiempo)
 
 
 def accion_comparar():
@@ -638,12 +704,14 @@ def accion_comparar():
             else:
                 salida.insert("end", "   Sin mediciones registradas\n")
 
-            if f["resumen"]:
+            if f["resumen"] and not f["resumen"].get("sin_tiempo_uso"):
                 salida.insert("end", f"   Energía total:  {f['resumen']['energia_uWh']:.2f} µWh\n")
                 if f["resumen"]["vida_util_horas"] is not None:
-                    salida.insert("end", f"   Vida útil estimada:  {f['resumen']['vida_util_horas']:.2f} h\n")
+                    salida.insert("end", f"   Vida útil estimada:  {f['resumen']['vida_util_horas']:.2f} h de uso\n")
                 else:
                     salida.insert("end", "   Vida útil:  sin tendencia a la baja todavía\n")
+            elif f["resumen"]:
+                salida.insert("end", "   Sin tiempo de uso registrado entre mediciones\n")
             else:
                 salida.insert("end", "   Datos insuficientes (se necesitan 2+ mediciones)\n")
             salida.insert("end", "\n")
@@ -652,10 +720,12 @@ def accion_comparar():
         crit = criterio.get()
         candidatos = []
         for f in filas:
-            if crit == "energia" and f["resumen"]:
-                candidatos.append((f["nombre"], f["resumen"]["energia_uWh"], "µWh"))
-            elif crit == "vida_util" and f["resumen"] and f["resumen"]["vida_util_horas"] is not None:
-                candidatos.append((f["nombre"], f["resumen"]["vida_util_horas"], "h"))
+            r = f["resumen"]
+            valido = r and not r.get("sin_tiempo_uso")
+            if crit == "energia" and valido:
+                candidatos.append((f["nombre"], r["energia_uWh"], "µWh"))
+            elif crit == "vida_util" and valido and r["vida_util_horas"] is not None:
+                candidatos.append((f["nombre"], r["vida_util_horas"], "h"))
             elif crit == "potencia" and f["pot_prom"] is not None:
                 candidatos.append((f["nombre"], f["pot_prom"], "µW"))
 
